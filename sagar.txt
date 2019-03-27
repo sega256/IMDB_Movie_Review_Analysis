@@ -1,0 +1,109 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Thu Jan 24 13:50:03 2019
+
+@author: shaz-
+"""
+import os
+import json
+import requests
+import numpy as np
+import pandas as pd
+import mysql.connector
+os.system('cls')
+
+dataset=pd.read_excel('output_12.xlsx')
+list(dataset['title'][1:5])
+
+def getMovieData(Movietitle):
+    api_request = requests.get("http://www.omdbapi.com/?t={}&apikey=2ac7018b".format(Movietitle))
+    api = json.loads(api_request.content)   
+    return api
+
+#
+#for i in data['Ratings']:
+#    for key,value in i.items():
+#        if key=='Value':
+#            ratings.append(value)            
+#float(ratings[0].replace('/10',''))
+#float(ratings[1].replace('%',''))/10
+#float(ratings[2].replace('/100',''))/10
+
+
+mydb = mysql.connector.connect(
+  host="localhost",
+  user="root",
+  passwd="$shaz$786")
+print(mydb) 
+mycursor = mydb.cursor()
+mycursor.execute("CREATE DATABASE IMDBMovies")
+mycursor.execute("SHOW DATABASES")
+for x in mycursor:
+  print(x) 
+
+sql="""CREATE TABLE `imdbmovies`.`movies` (
+  `Title` VARCHAR(255) NOT NULL,
+  `Year` YEAR(4) NOT NULL,
+  `Genre` VARCHAR(45) NULL,
+  `IMDBID` VARCHAR(45) NOT NULL,
+  `URL` LONGTEXT NULL,
+  `Rating_Rotten_Tomatoes` INT NULL,
+  `Rating_IMDB` INT NULL,
+  `Rating_Metacritic` INT NULL,
+  PRIMARY KEY (`IMDBID`));"""
+
+mycursor.execute(sql)
+mycursor.execute("use imdbmovies")
+mycursor.execute("SHOW TABLES")  
+for x in mycursor:
+  print(x) 
+
+ratings=[]
+ratings_imdb=[]
+ratings_rotten=[]
+ratings_metacritics=[]
+
+for Mtitle in list(dataset['title'][1:5]):
+    MovieData=getMovieData(Mtitle)
+    for i in MovieData['Ratings']:
+        for key,values in i.items():
+            if key=='Value':
+                ratings.append(values)
+count=0
+while count < len(ratings):
+    ratings_imdb.append(float(ratings[count].replace('/10','')))
+    count+=3
+
+
+count=1
+while count < len(ratings):
+    ratings_rotten.append(float(ratings[count].replace('%',''))/10)
+    count+=3
+
+count=2
+while count < len(ratings):
+    ratings_metacritics.append(float(ratings[count].replace('/100',''))/10)
+    count+=3
+                
+    sql = "INSERT INTO movies VALUES (%s, %s,%s, %s,%s, %s,%s, %s)"
+    val=[(MovieData['Title'],
+         MovieData['Year'],
+         MovieData['Genre'],
+         MovieData['imdbID'],
+         MovieData['Poster'],
+         ratings_imdb,
+         ratings_rotten,
+         ratings_metacritics)] 
+    mycursor.executemany(sql, val)
+    mydb.commit()
+    print(mycursor.rowcount, "was inserted.") 
+    
+        
+#Finally fetching all the record from movies table and printing it
+#cur.execute("SELECT * FROM movies")
+#for r in cur:
+#    print(r)
+#conn.close()
+mycursor.execute('delete from movies')
+mydb.commit()
+print(mycursor.rowcount, "record(s) deleted") 
